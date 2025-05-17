@@ -10,6 +10,7 @@ const users = [
     {
         "id": 1,
         "fullname": "Aishwarya Jadhav",
+        "age": 25,
         "profession": "Software Developer",
         "location": "Mumbai ",
         "experience": 3,
@@ -20,6 +21,7 @@ const users = [
     {
         "id": 2,
         "fullname": "Arti Acharekar",
+        "age": 27,
         "profession": "Database Dev",
         "location": "USA",
         "experience": 1,
@@ -31,6 +33,7 @@ const users = [
     {
         "id": 3,
         "fullname": "Mandar Pansare",
+        "age": 30,
         "profession": "Government Employee",
         "location": "Mumbai",
         "experience": 5,
@@ -45,13 +48,13 @@ const users = [
 //Use middleware to log the details of each request (e.g., method, URL, status code). 
 app.use((req, res, next) => {
 
-    //condition for the time : allow to call apis only between 6am to 8pm(it used mostly in productions)
+    //condition for the time : allow to call apis only between 6am to 8pm
     const curTime = new Date();
     const curHours = curTime.getHours();
     if (curHours < 6 || curHours > 20) {
         console.log("API access is allowed only from 6am to 8pm")
 
-        return res.status(403).json({
+        return res.status(410).json({
             error: "Access Denied...",
             message: "API access is allowed only from 6am to 8pm"
         });
@@ -87,7 +90,7 @@ app.use((req, res, next) => {
         console.log(`Status  :  ${res.statusCode}`);
 
         //logs time
-        console.log(`timeadded : ${currentTime}`);
+        console.log(`time : ${currentTime}`);
         console.log("=================================");
 
     });
@@ -100,10 +103,11 @@ app.use((req, res, next) => {
 // MiddleWare 2
 // Implement validation middleware to check for required fields in the POST and PUT routes.
 function userValidation(req, res, next) {
-    const { fullname, profession, location, experience, skills, email, isWorking } = req.body;
+    const { fullname, age, profession, location, experience, skills, email, isWorking } = req.body;
 
     //If required field is missing
     if (fullname === undefined ||
+        age === undefined ||
         profession === undefined ||
         location === undefined ||
         experience === undefined ||
@@ -115,7 +119,7 @@ function userValidation(req, res, next) {
 
     //Skills validation - should add in array
     if (!Array.isArray(skills)) {
-        return res.status(400).json({
+        return res.status(412).json({
             error: "Validation Error",
             message: "Skills should be in an array"
         });
@@ -123,39 +127,68 @@ function userValidation(req, res, next) {
 
     //Skills validation - add atleast one skill
     if (skills.length === 0) {
-        return res.status(400).json({
+        return res.status(412).json({
             error: "Validation Error",
             message: "Add atleast one skill"
         });
     }
 
-    //Validattion for - experience should be a number
-    if (typeof experience !== 'number' || isNaN(experience)) {
-        return res.status(400).json({
+    //Validattion for - experience and age should be a number
+    if (typeof experience !== 'number' || isNaN(experience) || typeof age !== 'number' || isNaN(age)) {
+        return res.status(412).json({
             error: "Validation Error",
-            message: "Experience must be a number"
+            message: "Experience and Age must be a number"
         });
     };
+    
+    //Age should be between 18 to 50
+    if(age < 18 || age > 50){
+        return res.status(412).json({
+            error : "Validation Error",
+            message : "Age must be between 18 - 50"
+        })
+    }
 
     //Validate for isWorking
     if (typeof isWorking !== 'boolean') {
-        return res.status(400).json({
+        return res.status(412).json({
             error: "Validation Error",
             message: "isWorking must be a boolean (true or false)"
         });
     };
 
     //validation for - Fullname, profession, email and location
+    //must be a string
     if (typeof fullname !== "string" ||
         typeof profession !== "string" ||
         typeof location !== "string" ||
-        typeof email !== "string") {
-        return res.status(400).json({
+        typeof email !== "string" ) {
+        return res.status(412).json({
             error: "Validation Error",
             message: "Fullname, profession, email and location must be strings"
         });
     }
 
+    //validation for - Fullname, profession, email and location
+    //must be non-empty string
+    const stringFields = {fullname , profession ,location, email};
+    for (let [key , value] of Object.entries(stringFields)){
+        if(value.trim() === ''){
+            return res.status(412).json({
+                error : "Validation Error" ,
+                message : `${key} must be a non-empty string`
+            })
+        }
+    }
+
+    //Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if(!emailRegex.test(email)){
+        return res.status(412).json({
+            error : "Validation Error",
+            message : "Invalid email format"
+        })
+    }
 
     //continue
     next();
@@ -166,7 +199,7 @@ app.get("/users", (req, res) => {
 
     //Message to show when user list is empty
     if (users.length == 0) {
-        return res.status(404).json({ message: "User List is empty.. Please add new users.." })
+        return res.status(400).json({ message: "User List is empty.. Please add new users.." })
     }
     res.status(200).json({ message: `Users fetch successfully..`, users: users }); // Return 200 for successfull
 });
@@ -192,13 +225,14 @@ app.get("/users/:id", (req, res) => {
 
 //Add a new user.
 app.post("/user", userValidation, (req, res) => {
-    const { fullname, profession, location, experience, skills, email, isWorking } = req.body;
+    const { fullname,age, profession, location, experience, skills, email, isWorking } = req.body;
     const createId = users.length > 0 ? Math.max(...users.map(user => user.id)) + 1 : 1;
 
     //newUser
     const newUser = {
         id: createId,
         fullname: fullname,
+        age : age,
         profession: profession,
         location: location,
         experience: experience,
@@ -209,7 +243,7 @@ app.post("/user", userValidation, (req, res) => {
     };
     users.push(newUser);
     //Return 201 for creating user successfully
-    res.status(201).json({ message: "User Created Successfully", user: newUser }).send(users)
+    res.status(201).json({ message: "User Created Successfully", user: newUser })
 })
 
 //Update details of an existing user.
@@ -232,7 +266,7 @@ app.put("/user/:id", userValidation, (req, res) => {
     });
 
     //return 200 for update user successfull
-    res.status(200).json({ message: "User Updated successfully..", users: users }).send(user); // Send updated user 
+   return res.status(200).json({ message: "User Updated successfully..", user: user }) // Send updated user 
 });
 
 
@@ -266,20 +300,21 @@ app.delete("/users", (req, res) => {
     users.length = 0
 
     //Return response 200
-    res.status(200).json({ message: "All users have been deleted" });
+    return res.status(200).json({ message: "All users have been deleted", users: users });
 
 })
 
 //Server start
-app.listen(5100, () => {
-    console.log("Server is running on port 5100");
+let PORT = 8080
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT} `);
 });
 
 
 // MiddleWare3
 // For invalid routing
 app.use((req, res) => {
-    res.status(404).json({
+    res.status(502).json({
         error: "Invalid routing",
         message: `The requested URL ( ${req.originalUrl} ) not found on this server.. Please Enter valid URL.`
     })
@@ -288,7 +323,7 @@ app.use((req, res) => {
 //  middleware 4 => Error-handling
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-        return res.status(400).json({
+        return res.status(417).json({
             error: "Invalid JSON",
             message: "Please check your request body. Make sure JSON is properly formatted."
         });
